@@ -5,6 +5,7 @@ require 'tamashii/agent/buzzer'
 require 'tamashii/agent/card_reader'
 require 'tamashii/agent/keyboard_logger'
 require 'tamashii/agent/event'
+require 'pry'
 
 module Tamashii
   module Agent
@@ -17,6 +18,7 @@ module Tamashii
         logger.info "Starting Tamashii::Agent #{Tamashii::Agent::VERSION} in #{Config.env} mode"
         @serial_number = get_serial_number
         logger.info "Serial number: #{@serial_number}"
+        Tamashii::Component.load_all
         create_components
       end
 
@@ -130,6 +132,7 @@ module Tamashii
 
 
       def broadcast_event(event)
+        Tamashii::Component::Base.run(:received, event)
         @components.each_value do |c|
           c.send_event(event)
         end

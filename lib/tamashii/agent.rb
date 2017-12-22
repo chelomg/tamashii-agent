@@ -1,5 +1,7 @@
 require 'tamashii/config'
 
+require 'singleton'
+
 require "tamashii/agent/version"
 require "tamashii/agent/master"
 require "tamashii/agent/config"

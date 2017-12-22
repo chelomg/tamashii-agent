@@ -1,13 +1,13 @@
 require 'tamashii/common'
 require 'tamashii/client'
+require 'tamashii/component'
+require 'pry'
 module Tamashii
   module Agent
     class Config
-      class << self
-        def instance
-          @instance ||= Config.new
-        end
+      include Singleton
 
+      class << self
         def respond_to_missing?(name, _all = false)
           super
         end
