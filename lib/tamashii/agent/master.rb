@@ -18,7 +18,7 @@ module Tamashii
         logger.info "Starting Tamashii::Agent #{Tamashii::Agent::VERSION} in #{Config.env} mode"
         @serial_number = get_serial_number
         logger.info "Serial number: #{@serial_number}"
-        Tamashii::Component.load_all
+        Tamashii::Component.bootstrap(Config.components)
         create_components
       end
 
@@ -41,7 +41,7 @@ module Tamashii
 
       def create_components
         @components = {}
-        Config.components.each do |name, params|
+        Config.default_components.each do |name, params|
           create_component(name, params) 
         end
       end
@@ -124,6 +124,7 @@ module Tamashii
       # override
       def stop
         super
+        Tamashii::Component.stop
         @components.each_value do |c|
           c.stop
         end
@@ -132,7 +133,16 @@ module Tamashii
 
 
       def broadcast_event(event)
-        Tamashii::Component::Base.run(:received, event)
+        case event.type
+        when 1
+          ev = Tamashii::Component::Event.new
+          ev.type = event.type
+          ev.body = event.body
+          Config.components.each do |component|
+            #Tamashii::Component.find('PwmBuzzer').run(:receive, event)
+            Tamashii::Component.find(component).run(:receive, event)
+          end
+        end
         @components.each_value do |c|
           c.send_event(event)
         end

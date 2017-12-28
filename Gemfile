@@ -4,3 +4,4 @@ source 'https://rubygems.org'
 gemspec
 
 gem "tamashii-component", :path => "/home/pi/tamashii-component"
+gem "tamashii-pwm_buzzer", :path => "/home/pi/tamashii-pwm_buzzer"

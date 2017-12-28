@@ -25,6 +25,7 @@ module Tamashii
       AUTH_TYPES = [:none, :token]
 
       config :default_components, default: {networking: {class_name: :Networking, options: {}}}
+      config :components, default: []
       config :connection_timeout, default: 3
 
       config :env, deafult: nil
@@ -65,10 +66,6 @@ module Tamashii
 
       def remove_component(name)
         self.components.delete(name)
-      end
-
-      def components
-        @components ||= self.default_components.clone
       end
 
       def env(env = nil)
