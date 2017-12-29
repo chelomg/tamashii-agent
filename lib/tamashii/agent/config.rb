@@ -25,7 +25,7 @@ module Tamashii
       AUTH_TYPES = [:none, :token]
 
       config :default_components, default: {networking: {class_name: :Networking, options: {}}}
-      config :components, default: []
+      config :components, default: {}
       config :connection_timeout, default: 3
 
       config :env, deafult: nil

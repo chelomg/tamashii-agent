@@ -5,21 +5,49 @@ require 'tamashii/agent/buzzer'
 require 'tamashii/agent/card_reader'
 require 'tamashii/agent/keyboard_logger'
 require 'tamashii/agent/event'
+require 'tamashii/agent/common'
+require 'tamashii/component/base'
 require 'pry'
 
 module Tamashii
   module Agent
-    class Master < Component
+    class Master < Tamashii::Component::Base
+      include Common::Loggable
 
       attr_reader :serial_number
 
       def initialize
-        super(:master, self)
+        super
         logger.info "Starting Tamashii::Agent #{Tamashii::Agent::VERSION} in #{Config.env} mode"
         @serial_number = get_serial_number
         logger.info "Serial number: #{@serial_number}"
         Tamashii::Component.bootstrap(Config.components)
         create_components
+      end
+
+      #override
+      def run!
+        loop do
+          until @event_queue.empty? do
+            @event_queue.pop(true).call
+          end
+        end
+      end
+
+      #override
+      def clean_up
+      end
+
+      #override
+      def send_event(event, name = nil)
+        #keep other event won't be broken
+        return @event_queue << lambda do
+          process_event(event)
+        end if name.nil?
+
+        @event_queue << lambda do
+          Tamashii::Component.find(name).run(:receive, event)
+        end
       end
 
       def get_serial_number
@@ -133,16 +161,6 @@ module Tamashii
 
 
       def broadcast_event(event)
-        case event.type
-        when 1
-          ev = Tamashii::Component::Event.new
-          ev.type = event.type
-          ev.body = event.body
-          Config.components.each do |component|
-            #Tamashii::Component.find('PwmBuzzer').run(:receive, event)
-            Tamashii::Component.find(component).run(:receive, event)
-          end
-        end
         @components.each_value do |c|
           c.send_event(event)
         end
