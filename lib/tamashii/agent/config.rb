@@ -25,7 +25,7 @@ module Tamashii
       AUTH_TYPES = [:none, :token]
 
       config :default_components, default: {networking: {class_name: :Networking, options: {}}}
-      config :components, default: {}
+      #config :components, default: []
       config :connection_timeout, default: 3
 
       config :env, deafult: nil
@@ -34,6 +34,22 @@ module Tamashii
       config :localtime, default: "+08:00"
 
       config :lcd_animation_delay, default: 1
+
+      class Setting < Hash
+        def method_missing(name, *args, &block)
+          self[name] = OpenStruct.new()
+          self[name].instance_eval(&block)
+        end
+      end
+
+      def settings
+        @settings ||= Setting.new
+      end
+
+      def components(&block)
+        settings.instance_eval(&block) if block_given?
+        settings.merge(settings)
+      end
 
 
       def auth_type(type = nil)

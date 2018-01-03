@@ -7,6 +7,7 @@ require 'tamashii/agent/keyboard_logger'
 require 'tamashii/agent/event'
 require 'tamashii/agent/common'
 require 'tamashii/component/base'
+Bundler.require(:components)
 require 'pry'
 
 module Tamashii
