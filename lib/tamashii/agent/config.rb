@@ -1,6 +1,7 @@
 require 'tamashii/common'
 require 'tamashii/client'
 require 'tamashii/component'
+require 'tamashii/has_component'
 require 'pry'
 module Tamashii
   module Agent
@@ -21,11 +22,12 @@ module Tamashii
       end
 
       include Tamashii::Configurable
+      include Tamashii::HasComponent
 
       AUTH_TYPES = [:none, :token]
 
       config :default_components, default: {networking: {class_name: :Networking, options: {}}}
-      #config :components, default: []
+      
       config :connection_timeout, default: 3
 
       config :env, deafult: nil
@@ -35,22 +37,8 @@ module Tamashii
 
       config :lcd_animation_delay, default: 1
 
-      class Setting < Hash
-        def method_missing(name, *args, &block)
-          self[name] = OpenStruct.new()
-          self[name].instance_eval(&block)
-        end
-      end
-
-      def settings
-        @settings ||= Setting.new
-      end
-
-      def components(&block)
-        settings.instance_eval(&block) if block_given?
-        settings.merge(settings)
-      end
-
+      component :buzzer, 'PwmBuzzer'
+      component :mfrc522_spi, 'Mfrc522Spi'
 
       def auth_type(type = nil)
         return @auth_type ||= :none if type.nil?
