@@ -7,7 +7,7 @@ module Tamashii
     module Handler
       class Buzzer < Base
         def resolve(data)
-          @master.send_event(Event.new(Event::BEEP, data), :buzzer)
+          @master.send_event(Tamashii::PwmBuzzer::Event.new(:agent, body: data))
         end
       end
     end

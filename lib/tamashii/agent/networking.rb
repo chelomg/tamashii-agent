@@ -78,9 +78,9 @@ module Tamashii
 
       def handle_card_result(result)
         if result["auth"]
-          @master.send_event(Event.new(Event::BEEP, "ok"))
+          @master.send_event(Tamashii::PwmBuzzer::Event.new(:networking, body: "ok"))
         else
-          @master.send_event(Event.new(Event::BEEP, "no"))
+          @master.send_event(Tamashii::PwmBuzzer::Event.new(:networking, body: "no"))
         end
         if result["message"]
           @master.send_event(Event.new(Event::LCD_MESSAGE, result["message"]))

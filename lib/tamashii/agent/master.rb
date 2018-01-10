@@ -22,8 +22,15 @@ module Tamashii
         logger.info "Starting Tamashii::Agent #{Tamashii::Agent::VERSION} in #{Config.env} mode"
         @serial_number = get_serial_number
         logger.info "Serial number: #{@serial_number}"
-        Tamashii::Component.bootstrap(Config.components)
+        start
         create_components
+      end
+
+      def start
+        Config.components.each do |name, klass|
+          config = Config.send(name)
+          Tamashii::Component.bootstrap(self, name, klass, config)
+        end
       end
 
       #override
@@ -40,14 +47,9 @@ module Tamashii
       end
 
       #override
-      def send_event(event, name = nil)
-        #keep other event won't be broken
-        return @event_queue << lambda do
-          process_event(event)
-        end if name.nil?
-
+      def send_event(event)
         @event_queue << lambda do
-          Tamashii::Component.find(name).run(:receive, event)
+          process_event(event)
         end
       end
 
@@ -114,7 +116,9 @@ module Tamashii
             system_update
           end
         when Event::CONNECTION_NOT_READY
-          broadcast_event(Event.new(Event::BEEP, "error"))
+          #broadcast_event(Event.new(Event::BEEP, "error"))
+          #broadcast_event(Tamashii::PwmBuzzer::Event.new(:agent, body: "error"))
+          Tamashii::Component.find(:buzzer).run(:receive, Tamashii::PwmBuzzer::Event.new(:agent, body: "error"))
           broadcast_event(Event.new(Event::LCD_MESSAGE, "Fatal Error\nConnection Error"))
         when Event::RESTART_COMPONENT
           restart_component(event.body)
@@ -162,6 +166,9 @@ module Tamashii
 
 
       def broadcast_event(event)
+        Tamashii::Component.find_all.each_value do |c|
+          c.run(:receive, event)
+        end
         @components.each_value do |c|
           c.send_event(event)
         end

@@ -1,3 +1,4 @@
+require "tamashii/pwm_buzzer/event"
 module Tamashii
   module Agent
     class Event
