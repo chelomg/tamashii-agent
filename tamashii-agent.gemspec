@@ -37,7 +37,8 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "guard-rspec"
   spec.add_development_dependency "timecop"
   spec.add_development_dependency "pry"
-
+  spec.add_development_dependency "pry-nav"
+  spec.add_development_dependency "pry-remote"
 
   spec.add_runtime_dependency "tamashii-common", ">=0.2"
   spec.add_runtime_dependency "tamashii-client", ">=0.2"

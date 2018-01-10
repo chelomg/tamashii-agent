@@ -6,4 +6,5 @@ gemspec
 group :components do
   gem "tamashii-component", :path => "/home/pi/tamashii-component"
   gem "tamashii-pwm_buzzer", :path => "/home/pi/tamashii-pwm_buzzer"
+  gem "tamashii-mfrc522_spi", :path => "/home/pi/tamashii-mfrc522_spi"
 end
