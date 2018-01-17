@@ -25,10 +25,8 @@ module Tamashii
       include Tamashii::HasComponent
 
       AUTH_TYPES = [:none, :token]
-
-      config :default_components, default: {networking: {class_name: :Networking, options: {}}}
       
-      config :connection_timeout, default: 3
+      #config :connection_timeout, default: 3
 
       config :env, deafult: nil
       config :token
@@ -37,6 +35,7 @@ module Tamashii
 
       config :lcd_animation_delay, default: 1
 
+      component :networking, 'WebSocket'
       component :buzzer, 'PwmBuzzer'
       component :mfrc522_spi, 'Mfrc522Spi'
 
@@ -62,10 +61,6 @@ module Tamashii
         define_method(method_name) do |*args|
           Tamashii::Client.config.send(method_name, *args)
         end
-      end
-
-      def add_component(name, class_name, options = {},  &block)
-        self.components[name] = {class_name: class_name, options: options, block: block}
       end
 
       def remove_component(name)

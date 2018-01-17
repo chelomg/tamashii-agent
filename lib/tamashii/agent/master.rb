@@ -8,6 +8,7 @@ require 'tamashii/agent/event'
 require 'tamashii/agent/common'
 require 'tamashii/component/base'
 Bundler.require(:components)
+require 'tamashii/component/bus'
 require 'pry'
 
 module Tamashii
@@ -23,7 +24,8 @@ module Tamashii
         @serial_number = get_serial_number
         logger.info "Serial number: #{@serial_number}"
         start
-        create_components
+        Tamashii::Component::Bus.subscribe(self)
+        Tamashii::Component::Bus.start
       end
 
       def start
@@ -70,23 +72,6 @@ module Tamashii
         end
       end
 
-      def create_components
-        @components = {}
-        Config.default_components.each do |name, params|
-          create_component(name, params) 
-        end
-      end
-
-      def create_component(name, params)
-        klass = Agent.const_get(params[:class_name])
-        logger.info "Starting component #{name}:#{klass}"
-        c = klass.new(name, self, params[:options])
-        c.instance_eval(&params[:block]) if params[:block] 
-        yield c if block_given?
-        c.run
-        @components[name] = c
-      end
-
       def restart_component(name)
         if old_component = @components[name]
           params = Config.components[name]
@@ -96,6 +81,37 @@ module Tamashii
           create_component(name, params)
         else
           logger.error "Restart component failed: unknown component #{name}"
+        end
+      end
+
+      #override
+      def process(event)
+        logger.debug "Got event: #{event.class}, #{event.body}"
+        #put first keep event.type no method error
+        #broadcast_event
+        if event.is_a?(Mfrc522Spi::Event)
+          Tamashii::Component.find(:networking).process_event(event)
+        end
+        if event.is_a?(PwmBuzzer::Event)
+          logger.debug "BEEP: #{event.body}"
+          case event.body
+          when "ok"
+            Tamashii::Component.find(:buzzer).play_ok
+          when "no"
+            Tamashii::Component.find(:buzzer).play_no
+          when "error"
+            Tamashii::Component.find(:buzzer).play_error
+          end
+        end
+        if event.is_a?(WebSocket::Event::ConnectionNotReady)
+          Tamashii::Component.find(:buzzer).play_error
+          #TODO: use lcd event
+          broadcast_event(Event.new(Event::LCD_MESSAGE, "Fatal Error\nConnection Error"))
+        end
+
+        case event.type
+        when Event::RESTART_COMPONENT
+          restart_component(event.body)
         end
       end
 
@@ -115,15 +131,6 @@ module Tamashii
           when Tamashii::Type::UPDATE
             system_update
           end
-        when Event::CONNECTION_NOT_READY
-          #broadcast_event(Event.new(Event::BEEP, "error"))
-          #broadcast_event(Tamashii::PwmBuzzer::Event.new(:agent, body: "error"))
-          Tamashii::Component.find(:buzzer).run(:receive, Tamashii::PwmBuzzer::Event.new(:agent, body: "error"))
-          broadcast_event(Event.new(Event::LCD_MESSAGE, "Fatal Error\nConnection Error"))
-        when Event::RESTART_COMPONENT
-          restart_component(event.body)
-        else
-          broadcast_event(event)
         end
       end
 
@@ -158,9 +165,6 @@ module Tamashii
       def stop
         super
         Tamashii::Component.stop
-        @components.each_value do |c|
-          c.stop
-        end
         logger.info "Master stopped"
       end
 
@@ -168,9 +172,6 @@ module Tamashii
       def broadcast_event(event)
         Tamashii::Component.find_all.each_value do |c|
           c.run(:receive, event)
-        end
-        @components.each_value do |c|
-          c.send_event(event)
         end
       end
     end
