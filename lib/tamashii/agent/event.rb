@@ -1,6 +1,6 @@
 require "tamashii/pwm_buzzer/event"
 require "tamashii/mfrc522_spi/event"
-require "tamashii/websocket/event"
+require "tamashii/web_socket/event"
 module Tamashii
   module Agent
     class Event
