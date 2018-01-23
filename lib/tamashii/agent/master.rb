@@ -9,6 +9,9 @@ require 'tamashii/agent/common'
 require 'tamashii/component/base'
 Bundler.require(:components)
 require 'tamashii/component/bus'
+require 'tamashii/agent/event_handler'
+require 'tamashii/agent/handler'
+require 'tamashii/web_socket/type'
 require 'pry'
 
 module Tamashii
@@ -24,6 +27,8 @@ module Tamashii
         @serial_number = get_serial_number
         logger.info "Serial number: #{@serial_number}"
         start
+        setup_networking_resolver
+        setup_event_handler
         Tamashii::Component::Bus.subscribe(self)
         Tamashii::Component::Bus.start
       end
@@ -84,81 +89,49 @@ module Tamashii
         end
       end
 
+      def setup_networking_resolver
+        env_data = {networking: Tamashii::Component.find(:networking), master: self}
+        Resolver.config do
+          [Type::REBOOT, Type::POWEROFF, Type::RESTART, Type::UPDATE].each do |type|
+            handle type,  Handler::System, env_data
+          end
+          [Type::LCD_MESSAGE, Type::LCD_SET_IDLE_TEXT].each do |type|
+            handle type,  Handler::Lcd, env_data
+          end
+          handle Type::BUZZER_SOUND,  Handler::Buzzer, env_data
+
+          handle WebSocket::Type::CONNECTION_NOT_READY, Handler::ConnectionNotReady
+          handle WebSocket::Type::CARD_RESULT, Handler::CardResult
+        end
+      end
+
+      def setup_event_handler
+        EventHandler.register(Tamashii::Mfrc522Spi::Event) do |event|
+          Tamashii::Component.find(:networking).process_event(event)
+        end
+
+        EventHandler.register(Tamashii::WebSocket::Event) do |event|
+          Resolver.resolve(event)
+        end
+
+        EventHandler.register(Tamashii::Agent::Event) do |event|
+          case event.type
+          when Event::RESTART_COMPONENT
+            restart_component(event.body)
+          end
+        end
+      end
+
       #override
       def process(event)
         logger.debug "Got event: #{event.class}, #{event.body}"
-        #put first keep event.type no method error
-        #broadcast_event
-        if event.is_a?(Mfrc522Spi::Event)
-          Tamashii::Component.find(:networking).process_event(event)
-        end
-        if event.is_a?(PwmBuzzer::Event)
-          logger.debug "BEEP: #{event.body}"
-          case event.body
-          when "ok"
-            Tamashii::Component.find(:buzzer).play_ok
-          when "no"
-            Tamashii::Component.find(:buzzer).play_no
-          when "error"
-            Tamashii::Component.find(:buzzer).play_error
-          end
-        end
-        if event.is_a?(WebSocket::Event::ConnectionNotReady)
-          Tamashii::Component.find(:buzzer).play_error
-          #TODO: use lcd event
-          broadcast_event(Event.new(Event::LCD_MESSAGE, "Fatal Error\nConnection Error"))
-        end
-
-        case event.type
-        when Event::RESTART_COMPONENT
-          restart_component(event.body)
-        end
+        EventHandler.resolve(event)
       end
 
+      # may remove
       # override
       def process_event(event)
         super
-        case event.type
-        when Event::SYSTEM_COMMAND
-          logger.info "System command code: #{event.body}"
-          case event.body.to_i
-          when Tamashii::Type::REBOOT
-            system_reboot
-          when Tamashii::Type::POWEROFF
-            system_poweroff
-          when Tamashii::Type::RESTART
-            system_restart
-          when Tamashii::Type::UPDATE
-            system_update
-          end
-        end
-      end
-
-      def show_message(message)
-        logger.info message
-        broadcast_event(Event.new(Event::LCD_MESSAGE, message))
-        sleep 1
-      end
-
-      def system_reboot
-        show_message "Rebooting"
-        system("reboot &")
-      end
-
-      def system_poweroff
-        show_message "Powering  Off"
-        system("poweroff &")
-      end
-
-      def system_restart
-        show_message "Restarting"
-        system("systemctl restart tamashii-agent.service &")
-      end
-
-      def system_update
-        show_message("Updating")
-        system("gem update tamashii-agent")
-        system_restart
       end
 
       # override
@@ -173,6 +146,10 @@ module Tamashii
         Tamashii::Component.find_all.each_value do |c|
           c.run(:receive, event)
         end
+      end
+
+      def config
+        Config
       end
     end
   end
