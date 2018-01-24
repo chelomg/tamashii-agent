@@ -36,7 +36,36 @@ module Tamashii
       def start
         Config.components.each do |name, klass|
           config = Config.send(name)
-          Tamashii::Component.bootstrap(self, name, klass, config)
+          Tamashii::Component.create_components(self, name, klass, config)
+        end
+        setup_web_socket
+        Tamashii::Component.start_components
+      end
+
+      def setup_web_socket
+        ws = Tamashii::Component.find(:networking)
+        ws.open do |c|
+          c.logger.info "Server opened"
+          c.auth_request
+          c.send_auth_request([Tamashii::Type::CLIENT[:agent], @serial_number, Config.token])
+        end
+
+        ws.close do |c|
+          c.logger.info "Server closed normally"
+        end
+
+        ws.socket_closed do |c|
+          c.logger.info "Server socket closed"
+          c.reset
+        end
+
+        ws.message do |c, data|
+          pkt = Packet.load(data)
+          c.process_packet(pkt) if pkt
+        end
+
+        ws.error do |c, e|
+          c.logger.error("#{e.message}")
         end
       end
 
@@ -99,6 +128,7 @@ module Tamashii
             handle type,  Handler::Lcd, env_data
           end
           handle Type::BUZZER_SOUND,  Handler::Buzzer, env_data
+          handle Type::RFID_RESPONSE_JSON,  Handler::RemoteResponse, env_data
 
           handle WebSocket::Type::CONNECTION_NOT_READY, Handler::ConnectionNotReady
           handle WebSocket::Type::CARD_RESULT, Handler::CardResult
@@ -146,10 +176,6 @@ module Tamashii
         Tamashii::Component.find_all.each_value do |c|
           c.run(:receive, event)
         end
-      end
-
-      def config
-        Config
       end
     end
   end
