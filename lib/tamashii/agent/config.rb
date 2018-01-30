@@ -26,7 +26,7 @@ module Tamashii
 
       AUTH_TYPES = [:none, :token]
       
-      #config :connection_timeout, default: 3
+      config :connection_timeout, default: 3
 
       config :env, deafult: nil
       config :token
