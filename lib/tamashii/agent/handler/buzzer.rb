@@ -6,7 +6,15 @@ module Tamashii
     module Handler
       class Buzzer < Base
         def resolve(data)
-          Tamashii::Component.find(:buzzer).process_event(Tamashii::PwmBuzzer::Event.new(body: data))
+          case data
+          when "ok"
+            Tamashii::Component.find(:buzzer).play_ok
+          when "no"
+            Tamashii::Component.find(:buzzer).play_no
+          when "error"
+            Tamashii::Component.find(:buzzer).play_error
+          end
+          
         end
       end
     end
