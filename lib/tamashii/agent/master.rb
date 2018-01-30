@@ -10,8 +10,8 @@ require 'tamashii/component/base'
 Bundler.require(:components)
 require 'tamashii/component/bus'
 require 'tamashii/agent/event_handler'
+require 'tamashii/agent/network_event_handler'
 require 'tamashii/agent/handler'
-require 'tamashii/web_socket/type'
 require 'pry'
 
 module Tamashii
@@ -27,10 +27,12 @@ module Tamashii
         @serial_number = get_serial_number
         logger.info "Serial number: #{@serial_number}"
         start
-        setup_networking_resolver
         setup_event_handler
         Tamashii::Component::Bus.subscribe(self)
         Tamashii::Component::Bus.start
+        @networking = Tamashii::Agent::Networking.new
+        @network_event_handler = Tamashii::Agent::NetworkEventHandler.new(self, @networking)
+        setup_networking_resolver
       end
 
       def start
@@ -38,35 +40,7 @@ module Tamashii
           config = Config.send(name)
           Tamashii::Component.create_components(self, name, klass, config)
         end
-        setup_web_socket
         Tamashii::Component.start_components
-      end
-
-      def setup_web_socket
-        ws = Tamashii::Component.find(:networking)
-        ws.open do |c|
-          c.logger.info "Server opened"
-          c.auth_request
-          c.send_auth_request([Tamashii::Type::CLIENT[:agent], @serial_number, Config.token])
-        end
-
-        ws.close do |c|
-          c.logger.info "Server closed normally"
-        end
-
-        ws.socket_closed do |c|
-          c.logger.info "Server socket closed"
-          c.reset
-        end
-
-        ws.message do |c, data|
-          pkt = Packet.load(data)
-          c.process_packet(pkt) if pkt
-        end
-
-        ws.error do |c, e|
-          c.logger.error("#{e.message}")
-        end
       end
 
       #override
@@ -119,7 +93,7 @@ module Tamashii
       end
 
       def setup_networking_resolver
-        env_data = {networking: Tamashii::Component.find(:networking), master: self}
+        env_data = {networking: @networking, master: self}
         Resolver.config do
           [Type::REBOOT, Type::POWEROFF, Type::RESTART, Type::UPDATE].each do |type|
             handle type,  Handler::System, env_data
@@ -129,25 +103,55 @@ module Tamashii
           end
           handle Type::BUZZER_SOUND,  Handler::Buzzer, env_data
           handle Type::RFID_RESPONSE_JSON,  Handler::RemoteResponse, env_data
-
-          handle WebSocket::Type::CONNECTION_NOT_READY, Handler::ConnectionNotReady
-          handle WebSocket::Type::CARD_RESULT, Handler::CardResult
         end
       end
 
       def setup_event_handler
         EventHandler.register(Tamashii::Mfrc522Spi::Event) do |event|
-          Tamashii::Component.find(:networking).process_event(event)
+          if @networking.ready?
+            id = event.body
+            wrapped_body = {
+              id: id,
+              ev_body: event.body
+            }.to_json
+            @networking.new_remote_request(id, Type::RFID_NUMBER, wrapped_body)
+          else
+            logger.info "Connection not ready for #{event.type}:#{event.body}"
+            Tamashii::Component.find(:buzzer).play_error
+          end
         end
 
         EventHandler.register(Tamashii::WebSocket::Event) do |event|
-          Resolver.resolve(event)
+          @network_event_handler.exec(event)
         end
 
         EventHandler.register(Tamashii::Agent::Event) do |event|
           case event.type
           when Event::RESTART_COMPONENT
             restart_component(event.body)
+          end
+        end
+      end
+
+      def process_packet(pkt)
+        if @networking.auth_pending?
+          if pkt.type == Type::AUTH_RESPONSE
+            if pkt.body == Packet::STRING_TRUE
+              @tag = pkt.tag
+              @networking.auth_success
+            else
+              logger.error "Authentication failed. Delay for 3 seconds"
+              #@master.send_event(Event.new(Event::LCD_MESSAGE, "Fatal Error\nAuth Failed"))
+              sleep 3
+            end
+          else
+            logger.error "Authentication error: Not an authentication result packet"
+          end
+        else
+          if pkt.tag == @tag || pkt.tag == 0
+            Resolver.resolve(pkt)
+          else
+            logger.debug "Tag mismatch packet: tag: #{pkt.tag}, type: #{pkt.type}"
           end
         end
       end
