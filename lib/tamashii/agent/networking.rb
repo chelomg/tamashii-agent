@@ -17,6 +17,7 @@ module Tamashii
   module Agent
     class Networking
       include Common::Loggable
+      include Tamashii::Hookable
       class RequestTimeoutError < RuntimeError; end
 
       include AASM
@@ -43,6 +44,59 @@ module Tamashii
         self.reset
         @tag = 0
         @future_ivar_pool = Concurrent::Map.new
+
+        after('networking.system', &method(:exec_command))
+        after('networking.lcd', &method(:process_lcd))
+        after('networking.buzzer', &method(:process_buzzer))
+        after('networking.rfid', &method(:process_rfid))
+      end
+
+      def process_packet(pkt)
+        if self.auth_pending?
+          if pkt.type == Type::AUTH_RESPONSE
+            if pkt.body == Packet::STRING_TRUE
+              @tag = pkt.tag
+              self.auth_success
+            else
+              logger.error "Authentication failed. Delay for 3 seconds"
+              #@master.send_event(Event.new(Event::LCD_MESSAGE, "Fatal Error\nAuth Failed"))
+              sleep 3
+            end
+          else
+            logger.error "Authentication error: Not an authentication result packet"
+          end
+        else
+          if pkt.tag == @tag || pkt.tag == 0
+            resolve(pkt)
+          else
+            logger.debug "Tag mismatch packet: tag: #{pkt.tag}, type: #{pkt.type}"
+          end
+        end
+      end
+
+      def resolve(pkt)
+        case pkt.type
+        when *[Type::REBOOT, Type::POWEROFF, Type::RESTART, Type::UPDATE] then run('networking.system', pkt)
+        when *[Type::LCD_MESSAGE, Type::LCD_SET_IDLE_TEXT] then run('networking.lcd', pkt)
+        when Type::BUZZER_SOUND then run('networking.buzzer', pkt)
+        when Type::RFID_RESPONSE_JSON then run('networking.rfid', pkt)
+        end
+      end
+
+      def exec_command(pkt)
+        Handler::System.new(pkt.type, {networking: self}).resolve(pkt.body)
+      end
+
+      def process_lcd(pkt)
+        Handler::Lcd.new(pkt.type, {networking: self}).resolve(pkt.body)
+      end
+
+      def process_buzzer(pkt)
+        Handler::Buzzer.new(pkt.type, {networking: self}).resolve(pkt.body)
+      end
+
+      def process_rfid(pkt)
+        Handler::RemoteResponse.new(pkt.type, {networking: self}).resolve(pkt.body)
       end
 
       def future_ivar_pool

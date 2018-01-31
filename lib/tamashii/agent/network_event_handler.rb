@@ -36,7 +36,7 @@ module Tamashii
 
       def message(data)
         pkt = Packet.load(data)
-        @agent.process_packet(pkt) if pkt
+        @networking.process_packet(pkt) if pkt
       end
 
       def error(e)

@@ -32,7 +32,6 @@ module Tamashii
         Tamashii::Component::Bus.start
         @networking = Tamashii::Agent::Networking.new
         @network_event_handler = Tamashii::Agent::NetworkEventHandler.new(self, @networking)
-        setup_networking_resolver
       end
 
       def start
@@ -92,20 +91,6 @@ module Tamashii
         end
       end
 
-      def setup_networking_resolver
-        env_data = {networking: @networking, master: self}
-        Resolver.config do
-          [Type::REBOOT, Type::POWEROFF, Type::RESTART, Type::UPDATE].each do |type|
-            handle type,  Handler::System, env_data
-          end
-          [Type::LCD_MESSAGE, Type::LCD_SET_IDLE_TEXT].each do |type|
-            handle type,  Handler::Lcd, env_data
-          end
-          handle Type::BUZZER_SOUND,  Handler::Buzzer, env_data
-          handle Type::RFID_RESPONSE_JSON,  Handler::RemoteResponse, env_data
-        end
-      end
-
       def setup_event_handler
         EventHandler.register(Tamashii::Mfrc522Spi::Event) do |event|
           if @networking.ready?
@@ -129,29 +114,6 @@ module Tamashii
           case event.type
           when Event::RESTART_COMPONENT
             restart_component(event.body)
-          end
-        end
-      end
-
-      def process_packet(pkt)
-        if @networking.auth_pending?
-          if pkt.type == Type::AUTH_RESPONSE
-            if pkt.body == Packet::STRING_TRUE
-              @tag = pkt.tag
-              @networking.auth_success
-            else
-              logger.error "Authentication failed. Delay for 3 seconds"
-              #@master.send_event(Event.new(Event::LCD_MESSAGE, "Fatal Error\nAuth Failed"))
-              sleep 3
-            end
-          else
-            logger.error "Authentication error: Not an authentication result packet"
-          end
-        else
-          if pkt.tag == @tag || pkt.tag == 0
-            Resolver.resolve(pkt)
-          else
-            logger.debug "Tag mismatch packet: tag: #{pkt.tag}, type: #{pkt.type}"
           end
         end
       end

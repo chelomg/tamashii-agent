@@ -7,7 +7,6 @@ module Tamashii
         def initialize(*args, &block)
           super(*args, &block)
           @networking = self.env[:networking]
-          @master = self.env[:master]
         end
       end
     end
