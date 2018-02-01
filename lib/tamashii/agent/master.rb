@@ -16,7 +16,7 @@ require 'pry'
 
 module Tamashii
   module Agent
-    class Master < Tamashii::Component::Base
+    class Master < Tamashii::Component::EventLoop
       include Common::Loggable
 
       attr_reader :serial_number
@@ -26,20 +26,25 @@ module Tamashii
         logger.info "Starting Tamashii::Agent #{Tamashii::Agent::VERSION} in #{Config.env} mode"
         @serial_number = get_serial_number
         logger.info "Serial number: #{@serial_number}"
-        start
-        setup_event_handler
-        Tamashii::Component::Bus.subscribe(self)
-        Tamashii::Component::Bus.start
+
         @networking = Tamashii::Agent::Networking.new
-        @network_event_handler = Tamashii::Agent::NetworkEventHandler.new(self, @networking)
+
+        bootstrap_components
+        setup_handlers
+        run_bus
       end
 
-      def start
+      def bootstrap_components
         Config.components.each do |name, klass|
           config = Config.send(name)
           Tamashii::Component.create_components(self, name, klass, config)
         end
         Tamashii::Component.start_components
+      end
+
+      def run_bus
+        Tamashii::Component::Bus.subscribe(self)
+        Tamashii::Component::Bus.start
       end
 
       #override
@@ -91,30 +96,38 @@ module Tamashii
         end
       end
 
-      def setup_event_handler
-        EventHandler.register(Tamashii::Mfrc522Spi::Event) do |event|
-          if @networking.ready?
-            id = event.body
-            wrapped_body = {
-              id: id,
-              ev_body: event.body
-            }.to_json
-            @networking.new_remote_request(id, Type::RFID_NUMBER, wrapped_body)
-          else
-            logger.info "Connection not ready for #{event.type}:#{event.body}"
-            Tamashii::Component.find(:buzzer).play_error
-          end
-        end
+      def setup_handlers
+        @network_event_handler = Tamashii::Agent::NetworkEventHandler.new(self, @networking)
 
-        EventHandler.register(Tamashii::WebSocket::Event) do |event|
-          @network_event_handler.exec(event)
-        end
+        EventHandler.register Tamashii::Mfrc522Spi::Event, &method(:process_card_event)
 
-        EventHandler.register(Tamashii::Agent::Event) do |event|
-          case event.type
-          when Event::RESTART_COMPONENT
-            restart_component(event.body)
-          end
+        EventHandler.register Tamashii::WebSocket::Event, &method(:process_networking_event)
+
+        EventHandler.register Tamashii::Agent::Event, &method(:process_agent_event)
+      end
+
+      def process_card_event(event)
+        if @networking.ready?
+          id = event.body
+          wrapped_body = {
+            id: id,
+            ev_body: event.body
+          }.to_json
+          @networking.new_remote_request(id, Type::RFID_NUMBER, wrapped_body)
+        else
+          logger.info "Connection not ready for #{event.type}:#{event.body}"
+          Tamashii::Component.find(:buzzer).play_error
+        end
+      end
+
+      def process_networking_event(event)
+        @network_event_handler.exec(event)
+      end
+
+      def process_agent_event(event)
+        case event.type
+        when Event::RESTART_COMPONENT
+          restart_component(event.body)
         end
       end
 
@@ -136,7 +149,6 @@ module Tamashii
         Tamashii::Component.stop
         logger.info "Master stopped"
       end
-
 
       def broadcast_event(event)
         Tamashii::Component.find_all.each_value do |c|
