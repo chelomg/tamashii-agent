@@ -18,7 +18,6 @@ module Tamashii
     class Networking
       include Common::Loggable
       include Tamashii::Hookable
-      class RequestTimeoutError < RuntimeError; end
 
       include AASM
 
@@ -45,10 +44,14 @@ module Tamashii
         @tag = 0
         @future_ivar_pool = Concurrent::Map.new
 
-        after('networking.system', &method(:exec_command))
-        after('networking.lcd', &method(:process_lcd))
-        after('networking.buzzer', &method(:process_buzzer))
-        after('networking.rfid', &method(:process_rfid))
+        #system 
+        after('networking.type_0', &method(:exec_command))
+        #lcd
+        after('networking.type_5', &method(:process_lcd))
+        #buzzer
+        after('networking.type_4', &method(:process_buzzer))
+        #rfid
+        after('networking.type_3', &method(:process_rfid))
       end
 
       def process_packet(pkt)
@@ -75,12 +78,7 @@ module Tamashii
       end
 
       def resolve(pkt)
-        case pkt.type
-        when *[Type::REBOOT, Type::POWEROFF, Type::RESTART, Type::UPDATE] then run('networking.system', pkt)
-        when *[Type::LCD_MESSAGE, Type::LCD_SET_IDLE_TEXT] then run('networking.lcd', pkt)
-        when Type::BUZZER_SOUND then run('networking.buzzer', pkt)
-        when Type::RFID_RESPONSE_JSON then run('networking.rfid', pkt)
-        end
+        run("networking.type_#{pkt.type/8}", pkt)
       end
 
       def exec_command(pkt)
