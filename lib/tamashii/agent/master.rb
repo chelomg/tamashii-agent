@@ -1,8 +1,5 @@
 require 'tamashii/agent/common'
 require 'tamashii/agent/networking'
-require 'tamashii/agent/lcd'
-require 'tamashii/agent/buzzer'
-require 'tamashii/agent/card_reader'
 require 'tamashii/agent/keyboard_logger'
 require 'tamashii/agent/event'
 require 'tamashii/agent/common'
@@ -11,7 +8,6 @@ Bundler.require(:components)
 require 'tamashii/component/bus'
 require 'tamashii/agent/event_handler'
 require 'tamashii/agent/network_event_handler'
-require 'tamashii/agent/handler'
 require 'pry'
 
 module Tamashii

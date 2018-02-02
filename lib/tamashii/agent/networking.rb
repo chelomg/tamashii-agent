@@ -7,17 +7,17 @@ require 'tamashii/agent/common'
 
 require 'tamashii/agent/config'
 require 'tamashii/agent/event'
-require 'tamashii/agent/component'
 
 require 'tamashii/agent/handler'
 
-require 'tamashii/client'
+require 'tamashii/agent/has_manage_remote_packet'
 
 module Tamashii
   module Agent
     class Networking
       include Common::Loggable
       include Tamashii::Hookable
+      include Agent::HasManageRemotePacket
 
       include AASM
 
@@ -54,6 +54,7 @@ module Tamashii
         after('networking.type_3', &method(:process_rfid))
       end
 
+      #override
       def process_packet(pkt)
         if self.auth_pending?
           if pkt.type == Type::AUTH_RESPONSE
@@ -77,24 +78,9 @@ module Tamashii
         end
       end
 
+      #override
       def resolve(pkt)
         run("networking.type_#{pkt.type/8}", pkt)
-      end
-
-      def exec_command(pkt)
-        Handler::System.new(pkt.type, {networking: self}).resolve(pkt.body)
-      end
-
-      def process_lcd(pkt)
-        Handler::Lcd.new(pkt.type, {networking: self}).resolve(pkt.body)
-      end
-
-      def process_buzzer(pkt)
-        Handler::Buzzer.new(pkt.type, {networking: self}).resolve(pkt.body)
-      end
-
-      def process_rfid(pkt)
-        Handler::RemoteResponse.new(pkt.type, {networking: self}).resolve(pkt.body)
       end
 
       def future_ivar_pool
