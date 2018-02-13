@@ -33,7 +33,7 @@ module Tamashii
       def bootstrap_components
         Config.components.each do |name, klass|
           config = Config.send(name)
-          Tamashii::Component.create_components(self, name, klass, config)
+          Tamashii::Component.create_component(self, name, klass, config)
         end
         Tamashii::Component.start_components
       end
