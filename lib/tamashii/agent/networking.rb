@@ -54,7 +54,6 @@ module Tamashii
         after('networking.type_3', &method(:process_rfid))
       end
 
-      #override
       def process_packet(pkt)
         if self.auth_pending?
           if pkt.type == Type::AUTH_RESPONSE
@@ -78,7 +77,6 @@ module Tamashii
         end
       end
 
-      #override
       def resolve(pkt)
         run("networking.type_#{pkt.type/8}", pkt)
       end

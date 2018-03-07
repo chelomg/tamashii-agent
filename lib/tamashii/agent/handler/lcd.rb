@@ -10,11 +10,12 @@ module Tamashii
         def resolve(data)
           logger.debug "TODO: LCD process"
           logger.debug "#{data}"
+          Tamashii::Component.find(:lcd).send_text(data)
           #case type
           #when Type::LCD_MESSAGE
-          #  @master.send_event(Event.new(Event::LCD_MESSAGE, data))
+          #  Tamashii::Component.find(:lcd).run_message(data)
           #when Type::LCD_SET_IDLE_TEXT
-          #  @master.send_event(Event.new(Event::LCD_SET_IDLE_TEXT, data))
+          #  Tamashii::Component.find(:lcd).run_idle_text(data)
           #end
         end
       end

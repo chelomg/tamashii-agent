@@ -38,6 +38,7 @@ module Tamashii
       component :networking, 'WebSocket'
       component :buzzer, 'PwmBuzzer'
       component :mfrc522_spi, 'Mfrc522Spi'
+      component :lcd, 'Lcm1602I2c'
 
       def auth_type(type = nil)
         return @auth_type ||= :none if type.nil?

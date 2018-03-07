@@ -14,7 +14,6 @@ module Tamashii
           when "error"
             Tamashii::Component.find(:buzzer).play_error
           end
-          
         end
       end
     end

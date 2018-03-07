@@ -10,6 +10,8 @@ require 'tamashii/agent/event_handler'
 require 'tamashii/agent/network_event_handler'
 require 'pry'
 
+Thread.abort_on_exception = true
+
 module Tamashii
   module Agent
     class Master < Tamashii::Component::EventLoop
